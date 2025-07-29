@@ -19,47 +19,42 @@ var (
 )
 
 type rag_ollama_test struct {
-	eb       *backend.OllamaBackend
-	gb       *backend.OllamaBackend
-	vectorDB *db.PGVector
+	embeddingBackend  *backend.OllamaBackend
+	generationBackend *backend.OllamaBackend
+	vectorDB          *db.PGVector
 }
 
-func (ai *rag_ollama_test) Init() (*rag_ollama_test, *context.Context) {
-	// Configure the Ollama backend for both embedding and generation
-	embeddingBackend := backend.NewOllamaBackend(ollamaEmdHost, ollamaEmbModel, time.Duration(120*time.Second))
-	log.Printf("Embedding backend LLM: %s", ollamaEmbModel)
-	ai.eb = embeddingBackend
+func (ai *rag_ollama_test) Init() *rag_ollama_test {
+	_, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
-	generationBackend := backend.NewOllamaBackend(ollamaHost, ollamaGenModel, time.Duration(120*time.Second))
+	// Configure the Ollama backend for both embedding and generation
+	ai.embeddingBackend = backend.NewOllamaBackend(ollamaEmdHost, ollamaEmbModel, time.Duration(120*time.Second))
+	log.Printf("Embedding backend LLM: %s", ollamaEmbModel)
+
+	ai.generationBackend = backend.NewOllamaBackend(ollamaHost, ollamaGenModel, time.Duration(120*time.Second))
 	log.Printf("Generation backend: %s", ollamaGenModel)
-	ai.gb = generationBackend
 
 	// Initialize the vector database
 	vectorDB, err := db.NewPGVector(databaseURL)
 	if err != nil {
 		log.Fatalf("Error initializing vector database: %v", err)
 	}
-	log.Println("Vector database initialized")
 	ai.vectorDB = vectorDB
+	log.Println("Vector database initialized")
 
-	// Make sure to close the connection when done
-	defer vectorDB.Close()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	// Close the connection when done
-	defer vectorDB.Close()
-	return ai, &ctx
+	return ai
 }
 
-func (ai *rag_ollama_test) test(ctx context.Context, query string) string {
+func (ai *rag_ollama_test) test(parent_ctx context.Context, query string) string {
 	if query == "" {
 		query = "When was the moon landing?"
 	}
+	ctx, cancel := context.WithTimeout(parent_ctx, time.Second*60)
+	defer cancel()
 
 	// Embed the query using the specified embedding backend
-	queryEmbedding, err := ai.eb.Embed(ctx, query) //headers
+	queryEmbedding, err := ai.embeddingBackend.Embed(ctx, query) //headers
 	if err != nil {
 		log.Fatalf("Error generating query embedding: %v", err)
 	}
@@ -89,7 +84,7 @@ func (ai *rag_ollama_test) test(ctx context.Context, query string) string {
 		})
 
 	// Generate response with the specified generation backend
-	response, err := ai.gb.Generate(ctx, prompt)
+	response, err := ai.generationBackend.Generate(ctx, prompt)
 	if err != nil {
 		log.Fatalf("Failed to generate response: %v", err)
 	}
@@ -98,7 +93,10 @@ func (ai *rag_ollama_test) test(ctx context.Context, query string) string {
 	return response
 }
 
-func (ai rag_ollama_test) add_document(ctx context.Context) {
+func (ai *rag_ollama_test) add_document(ctx context.Context) {
+	_, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
 	//We insert contextual information into the vector store so that the RAG system
 	//can use it to answer the query about the moon landing, effectively replacing 1969 with 2023
 	ragContent := "According to the Space Exploration Organization's official records, the moon landing occurred on July 20, 2023, during the Artemis Program. This mission marked the first successful crewed lunar landing since the Apollo program."
@@ -108,7 +106,7 @@ func (ai rag_ollama_test) add_document(ctx context.Context) {
 	// }
 
 	//Embed the query using Ollama Embedding backend
-	embedding, err := ai.eb.Embed(ctx, ragContent) //headers
+	embedding, err := ai.embeddingBackend.Embed(ctx, ragContent) //headers
 	if err != nil {
 		log.Fatalf("Error generating embedding: %v", err)
 	}
