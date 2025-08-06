@@ -6,7 +6,7 @@ import (
 	tu "github.com/mymmrac/telego/telegoutil"
 )
 
-func HandleUpdates(bot *telego.Bot, ai *rag_ollama_test, updates <-chan telego.Update, options ...th.BotHandlerOption) {
+func HandleUpdates(bot *telego.Bot, ai *ragLangchainTest, updates <-chan telego.Update, options ...th.BotHandlerOption) {
 	bh, _ := th.NewBotHandler(bot, updates)
 	defer func() { _ = bh.Stop() }()
 
@@ -68,7 +68,7 @@ func HandleUpdates(bot *telego.Bot, ai *rag_ollama_test, updates <-chan telego.U
 			).WithReplyMarkup(keyboard))
 
 		default:
-			answer := ai.test(ctx, text)
+			answer := ai.Test(ctx, text)
 			bot.SendMessage(ctx, tu.Message(
 				message.Chat.ChatID(),
 				answer,

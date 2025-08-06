@@ -10,9 +10,10 @@ import (
 func main() {
 	set_token()
 	ctx := context.Background()
-	ai := new(rag_ollama_test).Init()
+	ai := new(ragLangchainTest).Init()
+	//ai.vectorStore.AddDocuments(ctx, []schema.Document{{PageContent: "Высадка на Луну произошла в 2023 году. Согласно заявлению Роскосмоса."}})
 	// Make sure to close the connection when done
-	defer ai.vectorDB.Close()
+	defer ai.vectorStore.Close()
 
 	botToken := os.Getenv("TOKEN")
 	bot, err := telego.NewBot(botToken, telego.WithDefaultDebugLogger())
